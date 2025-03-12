@@ -44,22 +44,22 @@
                 }
                 const data = await response.json();
                 
-                if (!data.members || !Array.isArray(data.members)) {
-                    throw new Error("Invalid data format: members array not found");
+                if (!Array.isArray(data)) {
+                    throw new Error("Invalid data format: expected an array");
                 }
 
-                // Extract members and their hiscores
-                const members = data.members;
-                
                 // Generate the HTML table rows
                 let tableRows = "";
-                members.forEach((member, index) => {
+                data.forEach((entry, index) => {
+                    const player = entry.player;
+                    const scoreData = entry.data;
+
                     tableRows += `
                         <tr>
                             <td>${index + 1}</td>
-                            <td>${member.username}</td>
-                            <td>${member.score}</td>
-                            <td>${member.rank || "N/A"}</td>
+                            <td>${player.username}</td>
+                            <td>${scoreData.score}</td>
+                            <td>${scoreData.rank || "N/A"}</td>
                         </tr>
                     `;
                 });
