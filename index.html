@@ -40,6 +40,11 @@
             return new Promise(resolve => setTimeout(resolve, ms));
         }
 
+        // Helper function to encode usernames for URLs
+        function encodeUsername(username) {
+            return encodeURIComponent(username);
+        }
+
         async function fetchClanHiscores() {
             try {
                 // Fetch group data
@@ -56,15 +61,23 @@
                 const hiscores = [];
                 for (let i = 0; i < members.length; i++) {
                     const username = members[i];
+                    const encodedUsername = encodeUsername(username); // Encode username for URL
+
                     try {
-                        const logResponse = await fetch(`https://api.wiseoldman.net/v2/players/${username}/collection-log`);
+                        const logResponse = await fetch(`https://api.wiseoldman.net/v2/players/${encodedUsername}/collection-log`);
                         if (!logResponse.ok) {
-                            throw new Error(`HTTP error! Status: ${logResponse.status}`);
+                            console.warn(`Failed to fetch collection log for ${username}: HTTP error! Status: ${logResponse.status}`);
+                            hiscores.push({
+                                username: username,
+                                score: "N/A"
+                            });
+                            continue; // Skip to the next player
                         }
+
                         const logData = await logResponse.json();
                         hiscores.push({
                             username: username,
-                            score: logData.totalObtained
+                            score: logData.totalObtained || "N/A"
                         });
                     } catch (error) {
                         console.error(`Error fetching collection log for ${username}:`, error);
@@ -76,7 +89,7 @@
 
                     // Add a delay between requests to avoid rate limiting
                     if (i < members.length - 1) {
-                        await delay(70000); // 1 second delay between requests
+                        await delay(70000); // 1.5-second delay between requests
                     }
                 }
 
