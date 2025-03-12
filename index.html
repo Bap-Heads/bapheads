@@ -41,12 +41,31 @@
         </tbody>
     </table>
 
+    <!-- Add Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js"></script>
     <script>
+        // Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBelYqDi1YKJ3PWpbzDRsvIBVlaUDTXtqI",
+  authDomain: "clanhiscores.firebaseapp.com",
+  projectId: "clanhiscores",
+  storageBucket: "clanhiscores.firebasestorage.app",
+  messagingSenderId: "101248585475",
+  appId: "1:101248585475:web:a5e8a47276d226c22e2336",
+  measurementId: "G-E1WNV3Y0D7"
+};
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
         const GROUP_ID = 5474; // Replace with your group ID
         const METRIC = "collections_logged";
         const PAGE_SIZE = 20; // Number of members per page
         const RATE_LIMIT_DELAY = 70000; // 70 seconds in milliseconds
 
+        // Fetch data for a specific page
         async function fetchPage(page) {
             const url = `https://api.wiseoldman.net/v2/groups/${GROUP_ID}/hiscores?metric=${METRIC}&page=${page}&limit=${PAGE_SIZE}`;
             const response = await fetch(url);
@@ -56,9 +75,29 @@
             return await response.json();
         }
 
-        async function fetchAllMembers() {
-            let allMembers = [];
-            let page = 1;
+        // Save data to Firestore
+        async function saveToFirestore(data) {
+            const batch = db.batch();
+            const clanHiscoresRef = db.collection("clanHiscores");
+
+            data.forEach((entry) => {
+                const playerRef = clanHiscoresRef.doc(entry.player.username);
+                batch.set(playerRef, entry);
+            });
+
+            await batch.commit();
+        }
+
+        // Load data from Firestore
+        async function loadFromFirestore() {
+            const snapshot = await db.collection("clanHiscores").get();
+            return snapshot.docs.map(doc => doc.data());
+        }
+
+        // Fetch new data and update Firestore
+        async function fetchAndUpdateHiscores() {
+            let allMembers = await loadFromFirestore();
+            let page = Math.floor(allMembers.length / PAGE_SIZE) + 1;
             let hasMoreData = true;
 
             while (hasMoreData) {
@@ -67,6 +106,7 @@
                     const data = await fetchPage(page);
                     if (data.length > 0) {
                         allMembers = allMembers.concat(data);
+                        await saveToFirestore(data); // Update Firestore
                         page++;
                     } else {
                         hasMoreData = false; // No more data
@@ -86,35 +126,44 @@
             return allMembers;
         }
 
-        async function displayHiscores() {
+        // Display hiscores in the table
+        function displayHiscores(data) {
+            const tableBody = document.getElementById("hiscores-table");
+            let tableRows = "";
+
+            data.forEach((entry, index) => {
+                const player = entry.player;
+                const scoreData = entry.data;
+
+                tableRows += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${player.username}</td>
+                        <td>${scoreData.score}</td>
+                        <td>${scoreData.rank || "N/A"}</td>
+                    </tr>
+                `;
+            });
+
+            tableBody.innerHTML = tableRows;
+        }
+
+        // Main function to load and display hiscores
+        async function init() {
             try {
                 document.getElementById("loading").style.display = "block";
-                const allMembers = await fetchAllMembers();
 
-                if (allMembers.length === 0) {
-                    throw new Error("No data found.");
+                // Load existing data from Firestore
+                const storedData = await loadFromFirestore();
+                if (storedData.length > 0) {
+                    displayHiscores(storedData); // Display stored data immediately
                 }
 
-                // Generate the HTML table rows
-                let tableRows = "";
-                allMembers.forEach((entry, index) => {
-                    const player = entry.player;
-                    const scoreData = entry.data;
-
-                    tableRows += `
-                        <tr>
-                            <td>${index + 1}</td>
-                            <td>${player.username}</td>
-                            <td>${scoreData.score}</td>
-                            <td>${scoreData.rank || "N/A"}</td>
-                        </tr>
-                    `;
-                });
-
-                // Insert into the table
-                document.getElementById("hiscores-table").innerHTML = tableRows;
+                // Fetch new data and update the table
+                const updatedData = await fetchAndUpdateHiscores();
+                displayHiscores(updatedData);
             } catch (error) {
-                console.error("Error displaying data:", error);
+                console.error("Error initializing hiscores:", error);
                 document.getElementById("hiscores-table").innerHTML = `
                     <tr>
                         <td colspan="4">Failed to load data. Please try again later.</td>
@@ -125,7 +174,8 @@
             }
         }
 
-        displayHiscores();
+        // Start the process
+        init();
     </script>
 </body>
 </html>
