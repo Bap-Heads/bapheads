@@ -79,15 +79,25 @@
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
             }
-            return await response.json();
+            const data = await response.json();
+            console.log(`Fetched page ${page}:`, data);  // Log the API response
+            return data;
         }
 
-        // Save data to Firestore
+        // Save data to Firestore with filtering for scores >= 500
         async function saveToFirestore(data) {
             const batch = [];
-            data.forEach((entry) => {
+
+            // Filter out entries where the score is less than 500
+            const filteredData = data.filter(entry => entry.data.score >= 500);
+            
+            // Log the filtered data for verification
+            console.log("Filtered Data (score >= 500):", filteredData);
+
+            filteredData.forEach((entry) => {
+                console.log("Saving valid entry:", entry);  // Log the entry being saved
                 const playerRef = doc(db, "clanHiscores", entry.player.username);
-                batch.push(setDoc(playerRef, entry, { merge: true })); // Merge new data with existing data
+                batch.push(setDoc(playerRef, entry, { merge: true }));
             });
 
             await Promise.all(batch); // Commit all writes
@@ -103,39 +113,6 @@
             data.sort((a, b) => b.data.score - a.data.score);
 
             return data;
-        }
-
-        // Fetch group data (including collection logs)
-        async function fetchGroupData() {
-            const url = `https://api.wiseoldman.net/v2/groups/${GROUP_ID}`;
-            try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-                const data = await response.json();
-                
-                // Access collection logs from the response (assuming it exists)
-                if (data.collection_logs) {
-                    console.log("Collection Logs:", data.collection_logs);
-                    displayCollectionLogs(data.collection_logs);
-                } else {
-                    console.log("No collection logs available.");
-                }
-            } catch (error) {
-                console.error("Error fetching group data:", error);
-            }
-        }
-
-        // Display collection logs (or handle as necessary)
-        function displayCollectionLogs(collectionLogs) {
-            const logsContainer = document.getElementById("logs-container");
-            let logsHtml = "<h3>Collection Logs</h3><ul>";
-            collectionLogs.forEach(log => {
-                logsHtml += `<li>Item: ${log.item_name}, Quantity: ${log.quantity}, Date: ${log.date}</li>`;
-            });
-            logsHtml += "</ul>";
-            logsContainer.innerHTML = logsHtml;
         }
 
         // Display hiscores in the table
@@ -158,35 +135,6 @@
             });
 
             tableBody.innerHTML = tableRows;
-        }
-
-        // Main function to load and display hiscores
-        async function init() {
-            try {
-                document.getElementById("loading").style.display = "block";
-
-                // Load existing data from Firestore
-                const storedData = await loadFromFirestore();
-                if (storedData.length > 0) {
-                    displayHiscores(storedData); // Display stored data immediately
-                }
-
-                // Fetch new data and update the table
-                const updatedData = await fetchAndUpdateHiscores();
-                displayHiscores(updatedData);
-
-                // Fetch and display collection logs
-                await fetchGroupData();
-            } catch (error) {
-                console.error("Error initializing hiscores:", error);
-                document.getElementById("hiscores-table").innerHTML = `
-                    <tr>
-                        <td colspan="4">Failed to load data. Please try again later.</td>
-                    </tr>
-                `;
-            } finally {
-                document.getElementById("loading").style.display = "none";
-            }
         }
 
         // Fetch new data and update Firestore
@@ -219,6 +167,32 @@
             }
 
             return allMembers;
+        }
+
+        // Main function to load and display hiscores
+        async function init() {
+            try {
+                document.getElementById("loading").style.display = "block";
+
+                // Load existing data from Firestore
+                const storedData = await loadFromFirestore();
+                if (storedData.length > 0) {
+                    displayHiscores(storedData); // Display stored data immediately
+                }
+
+                // Fetch new data and update the table
+                const updatedData = await fetchAndUpdateHiscores();
+                displayHiscores(updatedData);
+            } catch (error) {
+                console.error("Error initializing hiscores:", error);
+                document.getElementById("hiscores-table").innerHTML = `
+                    <tr>
+                        <td colspan="4">Failed to load data. Please try again later.</td>
+                    </tr>
+                `;
+            } finally {
+                document.getElementById("loading").style.display = "none";
+            }
         }
 
         // Start the process
