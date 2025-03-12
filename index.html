@@ -80,17 +80,22 @@
             const batch = [];
             data.forEach((entry) => {
                 const playerRef = doc(db, "clanHiscores", entry.player.username);
-                batch.push(setDoc(playerRef, entry));
+                batch.push(setDoc(playerRef, entry, { merge: true })); // Merge new data with existing data
             });
 
             await Promise.all(batch); // Commit all writes
             console.log("Data saved to Firestore!");
         }
 
-        // Load data from Firestore
+        // Load data from Firestore and sort by score
         async function loadFromFirestore() {
             const querySnapshot = await getDocs(collection(db, "clanHiscores"));
-            return querySnapshot.docs.map(doc => doc.data());
+            const data = querySnapshot.docs.map(doc => doc.data());
+
+            // Sort by score (descending order)
+            data.sort((a, b) => b.data.score - a.data.score);
+
+            return data;
         }
 
         // Fetch new data and update Firestore
