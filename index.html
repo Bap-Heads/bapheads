@@ -22,9 +22,6 @@
             font-style: italic;
             color: #666;
         }
-        #logs-container {
-            margin-top: 20px;
-        }
     </style>
 </head>
 <body>
@@ -36,16 +33,15 @@
                 <th>Rank</th>
                 <th>Player</th>
                 <th>Score</th>
-                <!-- Removed Global Rank column -->
+                <th>Global Rank</th>
             </tr>
         </thead>
         <tbody id="hiscores-table">
             <!-- Data will be inserted here -->
         </tbody>
     </table>
-
-    <div id="logs-container">
-        <!-- Collection logs will be displayed here -->
+    <div id="load-more-container" style="text-align: center;">
+        <button id="load-more-button">Load More</button>
     </div>
 
     <script type="module">
@@ -72,6 +68,10 @@
         const PAGE_SIZE = 20; // Number of members per page
         const RATE_LIMIT_DELAY = 70000; // 70 seconds in milliseconds
 
+        // Pagination state
+        let currentPage = 1;
+        let lastVisible = null;
+
         // Fetch data for a specific page
         async function fetchPage(page) {
             const url = `https://api.wiseoldman.net/v2/groups/${GROUP_ID}/hiscores?metric=${METRIC}&page=${page}&limit=${PAGE_SIZE}`;
@@ -79,28 +79,15 @@
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
             }
-            const data = await response.json();
-            console.log(`Fetched page ${page}:`, data);  // Log the API response
-            return data;
+            return await response.json();
         }
 
-        // Save data to Firestore with filtering for scores >= 500
+        // Save data to Firestore
         async function saveToFirestore(data) {
             const batch = [];
-
-            // Filter out entries where the score is less than 500
-            const filteredData = data.filter(entry => entry.data.score >= 500);
-            
-            // Log the filtered data for verification
-            console.log("Filtered Data (score >= 500):", filteredData);
-
-            filteredData.forEach((entry) => {
-                // Remove the global rank field before saving to Firestore
-                const { rank, ...entryWithoutRank } = entry.data;  // Destructure and exclude 'rank'
-                
-                console.log("Saving valid entry:", entryWithoutRank);  // Log the entry being saved without rank
+            data.forEach((entry) => {
                 const playerRef = doc(db, "clanHiscores", entry.player.username);
-                batch.push(setDoc(playerRef, { ...entry, data: entryWithoutRank }, { merge: true }));
+                batch.push(setDoc(playerRef, entry, { merge: true })); // Merge new data with existing data
             });
 
             await Promise.all(batch); // Commit all writes
@@ -118,6 +105,37 @@
             return data;
         }
 
+        // Fetch new data and update Firestore
+        async function fetchAndUpdateHiscores() {
+            let allMembers = await loadFromFirestore();
+            let hasMoreData = true;
+
+            while (hasMoreData) {
+                try {
+                    console.log(`Fetching page ${currentPage}...`);
+                    const data = await fetchPage(currentPage);
+                    if (data.length > 0) {
+                        allMembers = allMembers.concat(data);
+                        await saveToFirestore(data); // Update Firestore
+                        currentPage++; // Increment page
+                    } else {
+                        hasMoreData = false; // No more data
+                    }
+                } catch (error) {
+                    console.error(`Error fetching page ${currentPage}:`, error);
+                    break;
+                }
+
+                // Respect the rate limiter
+                if (hasMoreData) {
+                    console.log(`Waiting ${RATE_LIMIT_DELAY / 1000} seconds before fetching the next page...`);
+                    await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
+                }
+            }
+
+            return allMembers;
+        }
+
         // Display hiscores in the table
         function displayHiscores(data) {
             const tableBody = document.getElementById("hiscores-table");
@@ -132,7 +150,7 @@
                         <td>${index + 1}</td>
                         <td>${player.username}</td>
                         <td>${scoreData.score}</td>
-                        <!-- Removed the Global Rank column -->
+                        <td>${scoreData.rank || "N/A"}</td>
                     </tr>
                 `;
             });
@@ -140,56 +158,23 @@
             tableBody.innerHTML = tableRows;
         }
 
-        // Fetch new data and update Firestore
-        async function fetchAndUpdateHiscores() {
-            let allMembers = await loadFromFirestore();
-            let page = Math.floor(allMembers.length / PAGE_SIZE) + 1;
-            let hasMoreData = true;
-
-            while (hasMoreData) {
-                try {
-                    console.log(`Fetching page ${page}...`);
-                    const data = await fetchPage(page);
-                    if (data.length > 0) {
-                        allMembers = allMembers.concat(data);
-                        await saveToFirestore(data); // Update Firestore
-                        page++;
-                    } else {
-                        hasMoreData = false; // No more data
-                    }
-                } catch (error) {
-                    console.error(`Error fetching page ${page}:`, error);
-                    break;
-                }
-
-                // Respect the rate limiter
-                if (hasMoreData) {
-                    console.log(`Waiting ${RATE_LIMIT_DELAY / 1000} seconds before fetching the next page...`);
-                    await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
-                }
-            }
-
-            return allMembers;
-        }
-
-        // Main function to load and display hiscores
+        // Initialize function
         async function init() {
             try {
-                console.log("Initializing hiscores...");
-                document.getElementById("loading").style.display = "block";  // Ensure loading is visible at the start
+                document.getElementById("loading").style.display = "block";
 
                 // Load existing data from Firestore
                 const storedData = await loadFromFirestore();
-                console.log("Stored data from Firestore:", storedData);
                 if (storedData.length > 0) {
                     displayHiscores(storedData); // Display stored data immediately
                 }
 
                 // Fetch new data and update the table
                 const updatedData = await fetchAndUpdateHiscores();
-                console.log("Updated data:", updatedData);
                 displayHiscores(updatedData);
 
+                // Hide the loading indicator
+                document.getElementById("loading").style.display = "none";
             } catch (error) {
                 console.error("Error initializing hiscores:", error);
                 document.getElementById("hiscores-table").innerHTML = `
@@ -197,11 +182,16 @@
                         <td colspan="4">Failed to load data. Please try again later.</td>
                     </tr>
                 `;
-            } finally {
-                console.log("Hiding loading message...");
-                document.getElementById("loading").style.display = "none";  // Hide the loading message once the process is complete
             }
         }
+
+        // Load more function
+        document.getElementById("load-more-button").addEventListener("click", async () => {
+            document.getElementById("loading").style.display = "block"; // Show loading indicator
+            const updatedData = await fetchAndUpdateHiscores();
+            displayHiscores(updatedData); // Update table with new data
+            document.getElementById("loading").style.display = "none"; // Hide loading indicator
+        });
 
         // Start the process
         init();
