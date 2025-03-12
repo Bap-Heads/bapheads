@@ -24,7 +24,7 @@
     <script>
         async function fetchClanHiscores() {
             try {
-                const response = await fetch("https://api.wiseoldman.net/v2/groups/5474");
+                const response = await fetch("https://api.wiseoldman.net/v2/groups/5474/hiscores?metric=collections_logged");
                 const data = await response.json();
                 
                 // Extract members and their hiscores
