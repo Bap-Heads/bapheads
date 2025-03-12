@@ -36,6 +36,11 @@
     </table>
 
     <script>
+        // Function to delay execution
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
         async function fetchAllClanHiscores() {
             try {
                 let allData = [];
@@ -46,7 +51,14 @@
                 while (hasMoreData) {
                     const response = await fetch(`https://api.wiseoldman.net/v2/groups/5474/hiscores?metric=collections_logged&page=${page}&limit=50`);
                     if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
+                        if (response.status === 429) {
+                            // If rate-limited, wait for 70 seconds before retrying
+                            console.log("Rate limit hit. Waiting for 70 seconds...");
+                            await delay(70000); // Wait for 70 seconds
+                            continue; // Retry the same page
+                        } else {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
                     }
                     const data = await response.json();
 
@@ -56,6 +68,10 @@
                         allData = allData.concat(data); // Combine results
                         page++; // Move to the next page
                     }
+
+                    // Add a 70-second delay between requests to comply with the API's rate limit
+                    console.log(`Fetched page ${page - 1}. Waiting for 70 seconds before fetching the next page...`);
+                    await delay(70000); // Wait for 70 seconds between requests
                 }
 
                 return allData;
