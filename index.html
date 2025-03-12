@@ -175,17 +175,21 @@
         // Main function to load and display hiscores
         async function init() {
             try {
-                document.getElementById("loading").style.display = "block";
+                console.log("Initializing hiscores...");
+                document.getElementById("loading").style.display = "block";  // Ensure loading is visible at the start
 
                 // Load existing data from Firestore
                 const storedData = await loadFromFirestore();
+                console.log("Stored data from Firestore:", storedData);
                 if (storedData.length > 0) {
                     displayHiscores(storedData); // Display stored data immediately
                 }
 
                 // Fetch new data and update the table
                 const updatedData = await fetchAndUpdateHiscores();
+                console.log("Updated data:", updatedData);
                 displayHiscores(updatedData);
+
             } catch (error) {
                 console.error("Error initializing hiscores:", error);
                 document.getElementById("hiscores-table").innerHTML = `
@@ -194,7 +198,8 @@
                     </tr>
                 `;
             } finally {
-                document.getElementById("loading").style.display = "none";
+                console.log("Hiding loading message...");
+                document.getElementById("loading").style.display = "none";  // Hide the loading message once the process is complete
             }
         }
 
