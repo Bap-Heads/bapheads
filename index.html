@@ -35,6 +35,11 @@
     </table>
 
     <script>
+        // Helper function to delay execution
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
         async function fetchClanHiscores() {
             try {
                 // Fetch group data
@@ -47,9 +52,10 @@
                 // Extract member usernames
                 const members = groupData.memberships.map(member => member.player.username);
 
-                // Fetch collection log data for each member
+                // Fetch collection log data for each member with rate limiting
                 const hiscores = [];
-                for (const username of members) {
+                for (let i = 0; i < members.length; i++) {
+                    const username = members[i];
                     try {
                         const logResponse = await fetch(`https://api.wiseoldman.net/v2/players/${username}/collection-log`);
                         if (!logResponse.ok) {
@@ -66,6 +72,11 @@
                             username: username,
                             score: "N/A"
                         });
+                    }
+
+                    // Add a delay between requests to avoid rate limiting
+                    if (i < members.length - 1) {
+                        await delay(70000); // 1 second delay between requests
                     }
                 }
 
