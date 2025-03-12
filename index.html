@@ -17,6 +17,11 @@
         th {
             background-color: #f2f2f2;
         }
+        #loading {
+            text-align: center;
+            font-style: italic;
+            color: #666;
+        }
         #logs-container {
             margin-top: 20px;
         }
@@ -24,13 +29,14 @@
 </head>
 <body>
     <h1>Clan Hiscores</h1>
+    <div id="loading">Loading...</div>
     <table>
         <thead>
             <tr>
                 <th>Rank</th>
                 <th>Player</th>
                 <th>Score</th>
-                <th>Global Rank</th>
+                <!-- Removed Global Rank column -->
             </tr>
         </thead>
         <tbody id="hiscores-table">
@@ -48,15 +54,14 @@
         import { getFirestore, collection, doc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
 
         // Your Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyBelYqDi1YKJ3PWpbzDRsvIBVlaUDTXtqI",
-  authDomain: "clanhiscores.firebaseapp.com",
-  projectId: "clanhiscores",
-  storageBucket: "clanhiscores.firebasestorage.app",
-  messagingSenderId: "101248585475",
-  appId: "1:101248585475:web:c8b410fd77d3a2bc2e2336",
-  measurementId: "G-BMQDRZ5TQ6"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyBelYqDi1YKJ3PWpbzDRsvIBVlaUDTXtqI",
+            authDomain: "clanhiscores.firebaseapp.com",
+            projectId: "clanhiscores",
+            storageBucket: "clanhiscores.firebasestorage.app",
+            messagingSenderId: "101248585475",
+            appId: "1:101248585475:web:a5e8a47276d226c22e2336"
+        };
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -64,7 +69,7 @@ const firebaseConfig = {
 
         const GROUP_ID = 5474; // Replace with your group ID
         const METRIC = "collections_logged";
-        const PAGE_SIZE = 500; // Number of members per page
+        const PAGE_SIZE = 20; // Number of members per page
         const RATE_LIMIT_DELAY = 70000; // 70 seconds in milliseconds
 
         // Fetch data for a specific page
@@ -90,9 +95,12 @@ const firebaseConfig = {
             console.log("Filtered Data (score >= 500):", filteredData);
 
             filteredData.forEach((entry) => {
-                console.log("Saving valid entry:", entry);  // Log the entry being saved
+                // Remove the global rank field before saving to Firestore
+                const { rank, ...entryWithoutRank } = entry.data;  // Destructure and exclude 'rank'
+                
+                console.log("Saving valid entry:", entryWithoutRank);  // Log the entry being saved without rank
                 const playerRef = doc(db, "clanHiscores", entry.player.username);
-                batch.push(setDoc(playerRef, entry, { merge: true }));
+                batch.push(setDoc(playerRef, { ...entry, data: entryWithoutRank }, { merge: true }));
             });
 
             await Promise.all(batch); // Commit all writes
@@ -124,7 +132,7 @@ const firebaseConfig = {
                         <td>${index + 1}</td>
                         <td>${player.username}</td>
                         <td>${scoreData.score}</td>
-                        <td>${scoreData.rank || "N/A"}</td>
+                        <!-- Removed the Global Rank column -->
                     </tr>
                 `;
             });
