@@ -21,6 +21,7 @@
             text-align: center;
             font-style: italic;
             color: #666;
+            display: none; /* Hide the loading initially */
         }
         #logs-container {
             margin-top: 20px;
@@ -35,7 +36,7 @@
             <tr>
                 <th>Rank</th>
                 <th>Player</th>
-                <th>Score</th>
+                <th>Collections Logged</th>
             </tr>
         </thead>
         <tbody id="hiscores-table">
@@ -175,7 +176,9 @@
         async function init() {
             try {
                 console.log("Initializing hiscores...");
-                document.getElementById("loading").style.display = "block";  // Ensure loading is visible at the start
+                // Hide loading message initially
+                const loadingElement = document.getElementById("loading");
+                loadingElement.style.display = "none";  // Hide loading right away
 
                 // Load existing data from Firestore
                 const storedData = await loadFromFirestore();
@@ -197,8 +200,12 @@
                     </tr>
                 `;
             } finally {
-                console.log("Hiding loading message...");
-                document.getElementById("loading").style.display = "none";  // Hide the loading message once the process is complete
+                // Hide the loading message if it's still visible
+                const loadingElement = document.getElementById("loading");
+                if (loadingElement.style.display !== "none") {
+                    console.log("Hiding loading message...");
+                    loadingElement.style.display = "none";  // Ensure loading is hidden
+                }
             }
         }
 
